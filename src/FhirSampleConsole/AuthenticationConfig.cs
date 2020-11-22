@@ -37,6 +37,8 @@ namespace FhirSampleConsole
         /// </summary>
         public string ClientId { get; set; }
 
+        public string Audience { get; set; }
+
         /// <summary>
         /// URL of the authority
         /// </summary>

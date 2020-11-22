@@ -2,7 +2,6 @@ using System;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Threading.Tasks.Dataflow;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using Microsoft.Extensions.Logging;
@@ -10,6 +9,7 @@ using Microsoft.IdentityModel.Clients.ActiveDirectory;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Polly;
+using FhirImporter.Extensions;
 
 namespace Microsoft.Health
 {
@@ -57,14 +57,14 @@ namespace Microsoft.Health
             ClientCredential clientCredential;
             AuthenticationResult authResult;
 
-            string authority = System.Environment.GetEnvironmentVariable("Authority");
-            string audience = System.Environment.GetEnvironmentVariable("Audience");
-            string clientId = System.Environment.GetEnvironmentVariable("ClientId");
-            string clientSecret = System.Environment.GetEnvironmentVariable("ClientSecret");
-            Uri fhirServerUrl = new Uri(System.Environment.GetEnvironmentVariable("FhirServerUrl"));
+            string authority = Environment.GetEnvironmentVariable("Authority");
+            string audience = Environment.GetEnvironmentVariable("Audience");
+            string clientId = Environment.GetEnvironmentVariable("ClientId");
+            string clientSecret = Environment.GetEnvironmentVariable("ClientSecret");
+            Uri fhirServerUrl = new Uri(Environment.GetEnvironmentVariable("FhirServerUrl"));
 
             int maxDegreeOfParallelism;
-            if (!int.TryParse(System.Environment.GetEnvironmentVariable("MaxDegreeOfParallelism"), out maxDegreeOfParallelism))
+            if (!int.TryParse(Environment.GetEnvironmentVariable("MaxDegreeOfParallelism"), out maxDegreeOfParallelism))
             {
                 maxDegreeOfParallelism = 16;
             }
@@ -80,13 +80,12 @@ namespace Microsoft.Health
                 log.LogCritical(string.Format("Unable to obtain token to access FHIR server in FhirImportService {0}", ee.ToString()));
                 throw;
             }
+                       
+            await entries.AsyncParallelForEach(async entry => { 
 
-            //var entriesNum = Enumerable.Range(0,entries.Count-1);
-            var actionBlock = new ActionBlock<int>(async i =>
-            {
-                var entry_json = ((JObject)entries[i])["resource"].ToString();
-                string resource_type = (string)((JObject)entries[i])["resource"]["resourceType"];
-                string id = (string)((JObject)entries[i])["resource"]["id"];
+                var entry_json = ((JObject)entry)["resource"].ToString();
+                string resource_type = (string)((JObject)entry)["resource"]["resourceType"];
+                string id = (string)((JObject)entry)["resource"]["id"];
                 var randomGenerator = new Random();
 
                 Thread.Sleep(TimeSpan.FromMilliseconds(randomGenerator.Next(50)));
@@ -136,27 +135,15 @@ namespace Microsoft.Health
                     string resultContent = await uploadResult.Content.ReadAsStringAsync();
                     log.LogError(resultContent);
 
-                        // Throwing a generic exception here. This will leave the blob in storage and retry.
-                        throw new Exception($"Unable to upload to server. Error code {uploadResult.StatusCode}");
+                    // Throwing a generic exception here. This will leave the blob in storage and retry.
+                    throw new Exception($"Unable to upload to server. Error code {uploadResult.StatusCode}");
                 }
                 else
                 {
                     log.LogInformation($"Uploaded /{resource_type}/{id}");
                 }
-            },
-                new ExecutionDataflowBlockOptions
-                {
-                    MaxDegreeOfParallelism = maxDegreeOfParallelism
-                }
-            );
-
-            for (var i = 0; i < entries.Count; i++)
-            {
-                actionBlock.Post(i);
-            }
-            actionBlock.Complete();
-            actionBlock.Completion.Wait();
-
+            }, maxDegreeOfParallelism);
+           
             return;
         }
     }

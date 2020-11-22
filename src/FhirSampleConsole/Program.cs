@@ -1,12 +1,17 @@
 ﻿// Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 
-using Microsoft.Identity.Client;
+using Microsoft.IdentityModel.Clients.ActiveDirectory;
 using Newtonsoft.Json.Linq;
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
+using FhirSampleConsole.Models;
+using Flurl;
+using Flurl.Http;
 
 namespace FhirSampleConsole
 {
@@ -21,7 +26,7 @@ namespace FhirSampleConsole
         {
             try
             {
-                RunAsync().GetAwaiter().GetResult();
+                RunAsync("Patient").GetAwaiter().GetResult();
             }
             catch (Exception ex)
             {
@@ -34,65 +39,77 @@ namespace FhirSampleConsole
             Console.ReadKey();
         }
 
-        private static async Task RunAsync()
+        private static async Task RunAsync(string resource)
         {
             AuthenticationConfig config = AuthenticationConfig.ReadFromJsonFile("appsettings.json");
 
-            // Even if this is a console application here, a daemon application is a confidential client application
-            IConfidentialClientApplication app;
+            AuthenticationContext authContext;
+            ClientCredential clientCredential;
+            AuthenticationResult authResult;
 
-            //if (isUsingClientSecret)
-            {
-                app = ConfidentialClientApplicationBuilder.Create(config.ClientId)
-                    .WithClientSecret(config.ClientSecret)
-                    .WithAuthority(new Uri(config.Authority))
-                    .Build();
-            }            
-
-            // With client credentials flows the scopes is ALWAYS of the shape "resource/.default", as the 
-            // application permissions need to be set statically (in the portal or by PowerShell), and then granted by
-            // a tenant administrator. 
-            string[] scopes = new string[] { $"{config.ApiUrl}.default" }; 
-            
-            AuthenticationResult result = null;
             try
             {
-                result = await app.AcquireTokenForClient(scopes)
-                    .ExecuteAsync();
-                Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine("Token acquired");
-                Console.ResetColor();
+                authContext = new AuthenticationContext(config.Authority);
+                clientCredential = new ClientCredential(config.ClientId, config.ClientSecret);
+                authResult = await authContext.AcquireTokenAsync(config.Audience, clientCredential);
             }
-            catch (MsalServiceException ex) when (ex.Message.Contains("AADSTS70011"))
+            catch (Exception ee)
             {
-                // Invalid scope. The scope has to be of the form "https://resourceurl/.default"
-                // Mitigation: change the scope to be as expected
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine("Scope provided is not supported");
-                Console.ResetColor();
+                Console.WriteLine(string.Format("Unable to obtain token to access FHIR server in FhirImportService {0}", ee.ToString()));
+                throw;
             }
 
             // TODO: Custom FHIR API calls go here
-            if (result != null)
+            if (authResult == null)
+                return;
+
+            List<FhirResource> results = new List<FhirResource>();
+            Uri nextLink = new Uri($"{config.ApiUrl}{resource}");
+            while (nextLink != null)
             {
-                var httpClient = new HttpClient();
-                var apiCaller = new ProtectedApiCallHelper(httpClient);
-                await apiCaller.CallWebApiAndProcessResultASync($"{config.ApiUrl}v1.0/users", result.AccessToken, Display);
+                var entries = await nextLink.AbsoluteUri
+                    .WithOAuthBearerToken(authResult.AccessToken)
+                    .GetJsonAsync<FhirResponse>();
+
+                results.AddRange(entries.Entry);
+
+                nextLink = entries.Link.FirstOrDefault(l => "next".Equals(l.Relation))?.Url;
             }
+
+            await Delete(results, authResult.AccessToken);
+            
         }
 
         /// <summary>
         /// Display the result of the Web API call
         /// </summary>
         /// <param name="result">Object to display</param>
-        private static void Display(JObject result)
+        private static void Display(IList<FhirResource> items)
         {
+            foreach (var item in items)
+            {
+                Console.WriteLine(item.FullUrl);
+            }
+            /*
             foreach (JProperty child in result.Properties().Where(p => !p.Name.StartsWith("@")))
             {
                 Console.WriteLine($"{child.Name} = {child.Value}");
             }
+            */
         }
 
+        private static async Task Delete(IList<FhirResource> items, string accessToken)
+        {
+            
+            foreach (var item in items)
+            {
+                Console.WriteLine($"Deleting: {item.FullUrl}");
+
+                await item.FullUrl
+                    .WithOAuthBearerToken(accessToken)
+                    .DeleteAsync();
+            }
+        }
 
     }
 }
