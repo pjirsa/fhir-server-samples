@@ -2,22 +2,108 @@ using System;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Threading.Tasks.Dataflow;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Clients.ActiveDirectory;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Polly;
+using FhirImporter.Extensions;
+using Flurl.Http;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using FhirImporter.Models;
 
 namespace Microsoft.Health
 {
     public static class FhirImport
     {
-        private static readonly HttpClient httpClient = new HttpClient();
-        
         public static async Task ImportBundle(string fhirString, ILogger log)
+        {
+                await ProcessItems(fhirString, log, "upsert");
+        }
+
+        public static async Task DeleteBundle(string fhirString, ILogger log)
+        {
+            await ProcessItems(fhirString, log, "delete");
+        }
+
+        public static async Task<IList<string>> GetEndpointsAsync(ILogger log)
+        {
+
+            string fhirServerUrl = Environment.GetEnvironmentVariable("FhirServerUrl");
+
+            string fhirResult = await $"{fhirServerUrl}/metadata".GetStringAsync();
+
+            try
+            {
+                JObject capabilityStatement = JObject.Parse(fhirResult);
+                JArray resources = (JArray)((JArray)capabilityStatement["rest"].FirstOrDefault()["resource"]);
+                return resources.Select(i => (string)i["type"]).ToList();
+            }
+            catch (Exception ex)
+            {
+                log.LogError("Error fetching metadata", ex);
+                throw ex;
+            }
+        }
+
+        public static async Task<IList<string>> GetEntriesJsonAsync(string resource, ILogger log)
+        {
+            var result = new List<string>();
+            try
+            {
+                string fhirServerUrl = Environment.GetEnvironmentVariable("FhirServerUrl");
+                string authToken = (await GetAuthTokenAsync()).AccessToken;
+
+                string nextLink = resource;
+
+                do
+                {
+                    var bundleJson = await $"{fhirServerUrl}/{nextLink}"
+                       .WithOAuthBearerToken(authToken)
+                       .GetStringAsync();
+                    result.Add(bundleJson);
+
+                    var response = JsonConvert.DeserializeObject<FhirResponse>(bundleJson);
+                    nextLink = response.Link.FirstOrDefault(l => l.Relation == "next")?.Url.PathAndQuery;
+                }
+                while (!string.IsNullOrEmpty(nextLink));
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                log.LogError($"Error fetching {resource}");
+                throw ex;
+            }
+        }
+
+        private static async Task<AuthenticationResult> GetAuthTokenAsync()
+        {
+            string authority = Environment.GetEnvironmentVariable("Authority");
+            string audience = Environment.GetEnvironmentVariable("Audience");
+            string clientId = Environment.GetEnvironmentVariable("ClientId");
+            string clientSecret = Environment.GetEnvironmentVariable("ClientSecret");
+
+            AuthenticationContext authContext;
+            ClientCredential clientCredential;
+            AuthenticationResult authResult;
+            try
+            {
+                authContext = new AuthenticationContext(authority);
+                clientCredential = new ClientCredential(clientId, clientSecret);
+                authResult = await authContext.AcquireTokenAsync(audience, clientCredential);
+                return authResult;
+            }
+            catch (Exception ee)
+            {
+                throw new Exception($"Unable to obtain token to access FHIR server in FhirImportService {ee}", ee);
+            }
+        }
+
+        private static async Task ProcessItems(string fhirString, ILogger log, string operation = "upsert")
         {
             JObject bundle;
             JArray entries;
@@ -28,11 +114,15 @@ namespace Microsoft.Health
             catch (JsonReaderException ex)
             {
                 var msg = "Input file is not a valid JSON document";
-                log.LogError(msg);
                 throw new Exception(msg, ex);
             }
 
-            log.LogInformation("Bundle read");
+            entries = (JArray)bundle["entry"];
+            if (entries == null)
+            {
+                log.LogWarning("No entries found in bundle");
+                return;
+            }
 
             try
             {
@@ -41,52 +131,23 @@ namespace Microsoft.Health
             catch (Exception ex)
             {
                 var msg = "Failed to resolve references in doc";
-                log.LogError(msg);
                 throw new Exception(msg, ex);
             }
-
-            entries = (JArray)bundle["entry"];
-            if (entries == null)
-            {
-                log.LogError("No entries found in bundle");
-                throw new FhirImportException("No entries found in bundle");
-            }
-
-
-            AuthenticationContext authContext;
-            ClientCredential clientCredential;
-            AuthenticationResult authResult;
-
-            string authority = System.Environment.GetEnvironmentVariable("Authority");
-            string audience = System.Environment.GetEnvironmentVariable("Audience");
-            string clientId = System.Environment.GetEnvironmentVariable("ClientId");
-            string clientSecret = System.Environment.GetEnvironmentVariable("ClientSecret");
-            Uri fhirServerUrl = new Uri(System.Environment.GetEnvironmentVariable("FhirServerUrl"));
-
+            
             int maxDegreeOfParallelism;
-            if (!int.TryParse(System.Environment.GetEnvironmentVariable("MaxDegreeOfParallelism"), out maxDegreeOfParallelism))
+            if (!int.TryParse(Environment.GetEnvironmentVariable("MaxDegreeOfParallelism"), out maxDegreeOfParallelism))
             {
                 maxDegreeOfParallelism = 16;
             }
 
-            try
-            {
-                authContext = new AuthenticationContext(authority);
-                clientCredential = new ClientCredential(clientId, clientSecret);
-                authResult = authContext.AcquireTokenAsync(audience, clientCredential).Result;
-            }
-            catch (Exception ee)
-            {
-                log.LogCritical(string.Format("Unable to obtain token to access FHIR server in FhirImportService {0}", ee.ToString()));
-                throw;
-            }
+            string fhirServerUrl = Environment.GetEnvironmentVariable("FhirServerUrl");
+            var authToken = (await GetAuthTokenAsync()).AccessToken;
 
-            //var entriesNum = Enumerable.Range(0,entries.Count-1);
-            var actionBlock = new ActionBlock<int>(async i =>
-            {
-                var entry_json = ((JObject)entries[i])["resource"].ToString();
-                string resource_type = (string)((JObject)entries[i])["resource"]["resourceType"];
-                string id = (string)((JObject)entries[i])["resource"]["id"];
+            await entries.AsyncParallelForEach(async entry => {
+
+                var entry_json = ((JObject)entry)["resource"].ToString();
+                string resource_type = (string)((JObject)entry)["resource"]["resourceType"];
+                string id = (string)((JObject)entry)["resource"]["id"];
                 var randomGenerator = new Random();
 
                 Thread.Sleep(TimeSpan.FromMilliseconds(randomGenerator.Next(50)));
@@ -99,65 +160,56 @@ namespace Microsoft.Health
 
                 if (string.IsNullOrEmpty(resource_type))
                 {
-                    log.LogError("No resource_type found.");
                     throw new FhirImportException("No resource_type in resource.");
                 }
 
-                StringContent content = new StringContent(entry_json, Encoding.UTF8, "application/json");
                 var pollyDelays =
                         new[]
                         {
                                 TimeSpan.FromMilliseconds(2000 + randomGenerator.Next(50)),
                                 TimeSpan.FromMilliseconds(3000 + randomGenerator.Next(50)),
                                 TimeSpan.FromMilliseconds(5000 + randomGenerator.Next(50)),
-                                TimeSpan.FromMilliseconds(8000 + randomGenerator.Next(50))
+                                TimeSpan.FromMilliseconds(8000 + randomGenerator.Next(50)),
                         };
 
 
-                HttpResponseMessage uploadResult = await Policy
-                    .HandleResult<HttpResponseMessage>(response => !response.IsSuccessStatusCode)
+                IFlurlResponse uploadResult = await Policy
+                    .Handle<FlurlHttpException>()
+                    //.Handle<FlurlHttpException>(flurlEx => null == flurlEx.Call || !flurlEx.Call.Succeeded)
                     .WaitAndRetryAsync(pollyDelays, (result, timeSpan, retryCount, context) =>
                     {
-                        log.LogWarning($"Request failed with {result.Result.StatusCode}. Waiting {timeSpan} before next retry. Retry attempt {retryCount}");
+                        log.LogWarning($"Request failed with {result.Message}. Waiting {timeSpan} before next retry. Retry attempt {retryCount}");
                     })
                     .ExecuteAsync(() =>
                     {
-                        var message = string.IsNullOrEmpty(id)
-                            ? new HttpRequestMessage(HttpMethod.Post, new Uri(fhirServerUrl, $"/{resource_type}"))
-                            : new HttpRequestMessage(HttpMethod.Put, new Uri(fhirServerUrl, $"/{resource_type}/{id}"));
-
-                        message.Content = content;
-                        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authResult.AccessToken);
-                        return httpClient.SendAsync(message);
+                        switch (operation)
+                        {
+                            case "delete":
+                                return $"{fhirServerUrl}/{resource_type}/{id}"
+                                    .WithOAuthBearerToken(authToken)
+                                    .DeleteAsync();
+                            case "upsert":
+                            default:
+                                StringContent content = new StringContent(entry_json, Encoding.UTF8, "application/json");
+                                return string.IsNullOrEmpty(id)
+                                    ? $"{fhirServerUrl}/{resource_type}".WithOAuthBearerToken(authToken).PostAsync(content)
+                                    : $"{fhirServerUrl}/{resource_type}/{id}".WithOAuthBearerToken(authToken).PutAsync(content);
+                        }
                     });
 
-                if (!uploadResult.IsSuccessStatusCode)
+                if (!uploadResult.ResponseMessage.IsSuccessStatusCode)
                 {
-                    string resultContent = await uploadResult.Content.ReadAsStringAsync();
+                    string resultContent = await uploadResult.GetStringAsync();
                     log.LogError(resultContent);
 
-                        // Throwing a generic exception here. This will leave the blob in storage and retry.
-                        throw new Exception($"Unable to upload to server. Error code {uploadResult.StatusCode}");
+                    // Throwing a generic exception here. This will leave the blob in storage and retry.
+                    throw new Exception($"Unable to {operation}. Error code {uploadResult.StatusCode}");
                 }
                 else
                 {
-                    log.LogInformation($"Uploaded /{resource_type}/{id}");
+                    log.LogInformation($"{operation}ed /{resource_type}/{id}");
                 }
-            },
-                new ExecutionDataflowBlockOptions
-                {
-                    MaxDegreeOfParallelism = maxDegreeOfParallelism
-                }
-            );
-
-            for (var i = 0; i < entries.Count; i++)
-            {
-                actionBlock.Post(i);
-            }
-            actionBlock.Complete();
-            actionBlock.Completion.Wait();
-
-            return;
+            }, maxDegreeOfParallelism);
         }
     }
 }
