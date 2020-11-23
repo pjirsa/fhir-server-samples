@@ -10,7 +10,8 @@
         },
         "durableTask": {
             "maxConcurrentActivityFunctions": 4,
-            "maxConcurrentOrchestratorFunctions": 4
+            "maxConcurrentOrchestratorFunctions": 1,
+            "hubName": "FhirTelemetryHub"
         }
     },
     "logging": {
