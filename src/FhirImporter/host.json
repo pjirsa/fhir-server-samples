@@ -15,6 +15,9 @@
         }
     },
     "logging": {
+        "logLevel": {
+            "Host.Triggers.DurableTask": "Information"
+        },
         "applicationInsights": {
             "samplingSettings": {
                 "isEnabled": false
