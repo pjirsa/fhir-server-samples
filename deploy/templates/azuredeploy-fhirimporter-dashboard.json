@@ -1,0 +1,471 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "dashboardName": {
+      "type": "string"
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "eastus"
+    }
+  },
+  "variables": {},
+  "resources": [
+    {
+      "properties": {
+        "lenses": {
+          "0": {
+            "order": 0,
+            "parts": {
+              "0": {
+                "position": {
+                  "x": 0,
+                  "y": 0,
+                  "colSpan": 6,
+                  "rowSpan": 1
+                },
+                "metadata": {
+                  "inputs": [],
+                  "type": "Extension/HubsExtension/PartType/MarkdownPart",
+                  "settings": {
+                    "content": {
+                      "settings": {
+                        "content": "\n",
+                        "title": "Fhir Importer Telemetry",
+                        "subtitle": "Bundle Imports in last 24 hrs",
+                        "markdownSource": 1,
+                        "markdownUri": null
+                      }
+                    }
+                  }
+                }
+              },
+              "1": {
+                "position": {
+                  "x": 6,
+                  "y": 0,
+                  "colSpan": 7,
+                  "rowSpan": 5
+                },
+                "metadata": {
+                  "inputs": [
+                    {
+                      "name": "ComponentId",
+                      "value": {
+                        "SubscriptionId": "a8f61e03-8571-438c-ac25-274d51ab7100",
+                        "ResourceGroup": "fhir-import",
+                        "Name": "fhirimportfunctionapp",
+                        "ResourceId": "/subscriptions/a8f61e03-8571-438c-ac25-274d51ab7100/resourceGroups/fhir-import/providers/microsoft.insights/components/fhirimportfunctionapp"
+                      },
+                      "isOptional": true
+                    },
+                    {
+                      "name": "Dimensions",
+                      "value": {
+                        "xAxis": {
+                          "name": "Path",
+                          "type": "string"
+                        },
+                        "yAxis": [
+                          {
+                            "name": "Total",
+                            "type": "long"
+                          }
+                        ],
+                        "splitBy": [
+                          {
+                            "name": "resultCode",
+                            "type": "string"
+                          }
+                        ],
+                        "aggregation": "Sum"
+                      },
+                      "isOptional": true
+                    },
+                    {
+                      "name": "PartId",
+                      "value": "13929e5d-4eef-41bc-9011-65d374f136bb",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "Version",
+                      "value": "1.0",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "resourceTypeMode",
+                      "value": "components",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "TimeRange",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "DashboardId",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "DraftRequestParameters",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "Query",
+                      "value": "//requests\n//union *\ndependencies\n// Apply filters\n| where timestamp > ago(1d)\n| where operation_Name == \"FhirImportTelemetry_ProcessBundle\"\n| where itemType == \"dependency\"\n//| where resultCode == \"429\"\n| extend path = parse_path(data)\n| summarize Total=count() by Path=tostring(path.DirectoryName), resultCode\n| order by Path\n//| summarize count() by performanceBucket\n//| render piechart\n| render barchart \n\n",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "ControlType",
+                      "value": "FrameControlChart",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "SpecificChart",
+                      "value": "StackedBar",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "PartTitle",
+                      "value": "Analytics",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "PartSubTitle",
+                      "value": "fhirimportfunctionapp",
+                      "isOptional": true
+                    }
+                  ],
+                  "type": "Extension/Microsoft_OperationsManagementSuite_Workspace/PartType/LogsDashboardPart",
+                  "settings": {
+                    "content": {
+                      "Query": "dependencies\n// Apply filters\n//| where timestamp > ago(1d)\n| where operation_Name == \"FhirImportTelemetry_ProcessBundle\"\n| where itemType == \"dependency\"\n| extend path = parse_path(data)\n| summarize Total=count() by Path=tostring(path.DirectoryName), resultCode\n| order by Path\n| render barchart \n\n",
+                      "PartTitle": "API Request Status",
+                      "PartSubTitle": "by ResourceType"
+                    }
+                  }
+                }
+              },
+              "2": {
+                "position": {
+                  "x": 0,
+                  "y": 1,
+                  "colSpan": 6,
+                  "rowSpan": 4
+                },
+                "metadata": {
+                  "inputs": [
+                    {
+                      "name": "ComponentId",
+                      "value": {
+                        "SubscriptionId": "a8f61e03-8571-438c-ac25-274d51ab7100",
+                        "ResourceGroup": "fhir-import",
+                        "Name": "fhirimportfunctionapp",
+                        "ResourceId": "/subscriptions/a8f61e03-8571-438c-ac25-274d51ab7100/resourceGroups/fhir-import/providers/microsoft.insights/components/fhirimportfunctionapp"
+                      },
+                      "isOptional": true
+                    },
+                    {
+                      "name": "Dimensions",
+                      "value": {
+                        "xAxis": {
+                          "name": "performanceBucket",
+                          "type": "string"
+                        },
+                        "yAxis": [
+                          {
+                            "name": "count_",
+                            "type": "long"
+                          }
+                        ],
+                        "splitBy": [],
+                        "aggregation": "Sum"
+                      },
+                      "isOptional": true
+                    },
+                    {
+                      "name": "PartId",
+                      "value": "15afb4c7-07f1-4fd3-9910-7d9059d1489d",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "Version",
+                      "value": "1.0",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "resourceTypeMode",
+                      "value": "components",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "TimeRange",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "DashboardId",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "DraftRequestParameters",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "Query",
+                      "value": "requests\n//union *\n// Apply filters\n| where timestamp > ago(1d)\n| where operation_Name == \"FhirImportTelemetry_ProcessBundle\"\n| summarize count() by performanceBucket\n| render piechart\n\n",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "ControlType",
+                      "value": "FrameControlChart",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "SpecificChart",
+                      "value": "Pie",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "PartTitle",
+                      "value": "Analytics",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "PartSubTitle",
+                      "value": "fhirimportfunctionapp",
+                      "isOptional": true
+                    }
+                  ],
+                  "type": "Extension/Microsoft_OperationsManagementSuite_Workspace/PartType/LogsDashboardPart",
+                  "settings": {
+                    "content": {
+                      "Query": "requests\n//| where timestamp > ago(1d)\n| where operation_Name == \"FhirImportTelemetry_ProcessBundle\"\n| summarize count() by performanceBucket\n| render piechart\n\n",
+                      "PartTitle": "Average Response Time",
+                      "PartSubTitle": "by performance bucket"
+                    }
+                  }
+                }
+              },
+              "3": {
+                "position": {
+                  "x": 0,
+                  "y": 5,
+                  "colSpan": 3,
+                  "rowSpan": 2
+                },
+                "metadata": {
+                  "inputs": [
+                    {
+                      "name": "ComponentId",
+                      "value": {
+                        "SubscriptionId": "a8f61e03-8571-438c-ac25-274d51ab7100",
+                        "ResourceGroup": "fhir-import",
+                        "Name": "fhirimportfunctionapp",
+                        "ResourceId": "/subscriptions/a8f61e03-8571-438c-ac25-274d51ab7100/resourceGroups/fhir-import/providers/microsoft.insights/components/fhirimportfunctionapp"
+                      },
+                      "isOptional": true
+                    },
+                    {
+                      "name": "Dimensions",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "PartId",
+                      "value": "15ced9b4-8b05-4d5b-b314-7f75d0b0832e",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "Version",
+                      "value": "1.0",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "resourceTypeMode",
+                      "value": "components",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "TimeRange",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "DashboardId",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "DraftRequestParameters",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "Query",
+                      "value": "requests\r\n| where timestamp > ago(1d)\r\n| where name == \"FhirImportTelemetry_ProcessBundle\"\r\n| summarize BundleCount=count()\n",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "ControlType",
+                      "value": "AnalyticsGrid",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "SpecificChart",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "PartTitle",
+                      "value": "Analytics",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "PartSubTitle",
+                      "value": "fhirimportfunctionapp",
+                      "isOptional": true
+                    }
+                  ],
+                  "type": "Extension/Microsoft_OperationsManagementSuite_Workspace/PartType/LogsDashboardPart",
+                  "settings": {
+                    "content": {
+                      "Query": "requests\n//| where timestamp > ago(1d)\n| where name == \"FhirImportTelemetry_ProcessBundle\"\n| summarize BundleCount=count()\n",
+                      "PartTitle": "Processed Bundles",
+                      "PartSubTitle": "fhirimportfunctionapp"
+                    }
+                  }
+                }
+              },
+              "4": {
+                "position": {
+                  "x": 3,
+                  "y": 5,
+                  "colSpan": 10,
+                  "rowSpan": 2
+                },
+                "metadata": {
+                  "inputs": [
+                    {
+                      "name": "ComponentId",
+                      "value": {
+                        "SubscriptionId": "a8f61e03-8571-438c-ac25-274d51ab7100",
+                        "ResourceGroup": "fhir-import",
+                        "Name": "fhirimportfunctionapp",
+                        "ResourceId": "/subscriptions/a8f61e03-8571-438c-ac25-274d51ab7100/resourceGroups/fhir-import/providers/microsoft.insights/components/fhirimportfunctionapp"
+                      },
+                      "isOptional": true
+                    },
+                    {
+                      "name": "Dimensions",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "PartId",
+                      "value": "1025d337-2821-4017-ba21-1c179710379b",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "Version",
+                      "value": "1.0",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "resourceTypeMode",
+                      "value": "components",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "TimeRange",
+                      "value": "P1D",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "DashboardId",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "DraftRequestParameters",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "Query",
+                      "value": "traces\r\n| where customDimensions.Category == \"Host.Triggers.DurableTask\"\r\n| extend functionName = customDimensions[\"prop__functionName\"]\r\n| extend instanceId = customDimensions[\"prop__instanceId\"]\r\n| extend state = customDimensions[\"prop__state\"]\r\n| extend isReplay = tobool(tolower(customDimensions[\"prop__isReplay\"]))\r\n| extend sequenceNumber = tolong(customDimensions[\"prop__sequenceNumber\"])\r\n| where functionName == \"FhirImportTelemetry\"\r\n| where isReplay != true\r\n| where state == \"Completed\"\r\n| join traces on operation_Id\r\n| where customDimensions1.Category == \"Function.FhirImportTelemetry.User\"\r\n| project functionName, instanceId, message1, timestamp1\r\n| summarize arg_max(timestamp1, *) by tostring(functionName)\r\n| order by timestamp1 desc\n",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "ControlType",
+                      "value": "AnalyticsGrid",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "SpecificChart",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "PartTitle",
+                      "value": "Analytics",
+                      "isOptional": true
+                    },
+                    {
+                      "name": "PartSubTitle",
+                      "value": "fhirimportfunctionapp",
+                      "isOptional": true
+                    }
+                  ],
+                  "type": "Extension/Microsoft_OperationsManagementSuite_Workspace/PartType/LogsDashboardPart",
+                  "settings": {
+                    "content": {
+                      "GridColumnsWidth": {
+                        "message1": "324px"
+                      },
+                      "Query": "traces\n| where customDimensions.Category == \"Host.Triggers.DurableTask\"\n| extend functionName = tostring(customDimensions[\"prop__functionName\"])\n| extend instanceId = customDimensions[\"prop__instanceId\"]\n| extend state = customDimensions[\"prop__state\"]\n| extend isReplay = tobool(tolower(customDimensions[\"prop__isReplay\"]))\n| extend sequenceNumber = tolong(customDimensions[\"prop__sequenceNumber\"])\n| where functionName == \"FhirImportTelemetry\"\n| where isReplay != true\n| where state == \"Completed\"\n| join traces on operation_Id\n| where customDimensions1.Category == \"Function.FhirImportTelemetry.User\"\n| project functionName, instanceId, message1, timestamp1\n| summarize arg_max(timestamp1, *) by functionName\n| order by timestamp1 desc\n"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "metadata": {
+          "model": {
+            "timeRange": {
+              "value": {
+                "relative": {
+                  "duration": 24,
+                  "timeUnit": 1
+                }
+              },
+              "type": "MsPortalFx.Composition.Configuration.ValueTypes.TimeRange"
+            },
+            "filterLocale": {
+              "value": "en-us"
+            },
+            "filters": {
+              "value": {
+                "MsPortalFx_TimeRange": {
+                  "model": {
+                    "format": "utc",
+                    "granularity": "auto",
+                    "relative": "24h"
+                  },
+                  "displayCache": {
+                    "name": "UTC Time",
+                    "value": "Past 24 hours"
+                  },
+                  "filteredPartIds": [
+                    "StartboardPart-LogsDashboardPart-5080bb96-d60d-4843-8503-6c21e07c8851",
+                    "StartboardPart-LogsDashboardPart-5080bb96-d60d-4843-8503-6c21e07c8876",
+                    "StartboardPart-LogsDashboardPart-5080bb96-d60d-4843-8503-6c21e07c8976",
+                    "StartboardPart-LogsDashboardPart-5080bb96-d60d-4843-8503-6c21e07c8c96"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "name": "[parameters('dashboardName')]",
+      "type": "Microsoft.Portal/dashboards",
+      "location": "[parameters('location')]",
+      "tags": {
+        "hidden-title": "[parameters('dashboardName')]"
+      },
+      "apiVersion": "2015-08-01-preview"
+    }
+  ]
+}

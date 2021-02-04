@@ -131,7 +131,18 @@
                     "properties": {
                       "publicAccess": "None"
                     }
-                  }                  
+                  },
+                   {
+                    "type": "blobServices/containers",
+                    "apiVersion": "2018-03-01-preview",
+                    "name": "[concat('default/', 'fhirimportmanual')]",
+                    "dependsOn": [
+                      "[variables('storageAccountName')]"
+                    ],
+                    "properties": {
+                      "publicAccess": "None"
+                    }
+                  }                 
             ]
         },
         {
